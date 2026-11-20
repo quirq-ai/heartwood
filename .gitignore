@@ -1,0 +1,6 @@
+node_modules
+dist
+.DS_Store
+*.log
+# optional self-hosted copy of the scan (scripts/fetch-scene.mjs, about 126 MB)
+public/scene

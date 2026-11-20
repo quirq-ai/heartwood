@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Heartwood</title>
+    <meta name="description" content="An ancient tree, captured as 5.9 million Gaussian splats, that pulses with music. Tap it to play." />
+    <meta name="theme-color" content="#050607" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Heartwood" />
+    <meta property="og:description" content="An ancient tree, captured as 5.9 million Gaussian splats, that pulses with music. Tap it to play." />
+    <meta property="og:url" content="https://liftoff-7-xo-sscay4t.apps.hello-xo.nl/" />
+    <meta property="og:image" content="https://liftoff-7-xo-sscay4t.apps.hello-xo.nl/og.jpg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://d28zzqy0iyovbz.cloudfront.net" crossorigin />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400&family=Inter:wght@400;500;600&display=swap" />
+</head>
+<body>
+    <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+        <defs>
+            <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.6v12.8c0 .8.9 1.3 1.6.8l10-6.4c.6-.4.6-1.2 0-1.6l-10-6.4C8.9 4.3 8 4.8 8 5.6z" fill="currentColor" stroke="none"/></symbol>
+            <symbol id="i-pause" viewBox="0 0 24 24"><rect x="6.5" y="5" width="4" height="14" rx="1.2" fill="currentColor" stroke="none"/><rect x="13.5" y="5" width="4" height="14" rx="1.2" fill="currentColor" stroke="none"/></symbol>
+            <symbol id="i-heart" viewBox="0 0 24 24"><path d="M12 20.3s-7.6-4.6-7.6-10.4A4.4 4.4 0 0 1 12 7.2a4.4 4.4 0 0 1 7.6 2.7c0 5.8-7.6 10.4-7.6 10.4z" fill="currentColor" stroke="none"/></symbol>
+            <symbol id="i-music" viewBox="0 0 24 24"><path d="M9 18V5.5l11-2V16"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="17.5" cy="16" r="2.5"/></symbol>
+            <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></symbol>
+            <symbol id="i-pulse" viewBox="0 0 24 24"><path d="M2.5 12h4l2.5-6 4.5 12 2.5-6h5.5"/></symbol>
+            <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></symbol>
+            <symbol id="i-orbit" viewBox="0 0 24 24"><ellipse cx="12" cy="12" rx="9.5" ry="4" transform="rotate(-18 12 12)"/><circle cx="12" cy="12" r="2.2" fill="currentColor" stroke="none"/></symbol>
+            <symbol id="i-expand" viewBox="0 0 24 24"><path d="M4 9V5.5A1.5 1.5 0 0 1 5.5 4H9M15 4h3.5A1.5 1.5 0 0 1 20 5.5V9M20 15v3.5a1.5 1.5 0 0 1-1.5 1.5H15M9 20H5.5A1.5 1.5 0 0 1 4 18.5V15"/></symbol>
+            <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 7.6v.1"/></symbol>
+            <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+            <symbol id="i-sound" viewBox="0 0 24 24"><path d="M4 9.5v5h3.5L12 18V6L7.5 9.5H4z" fill="currentColor" stroke="none"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/></symbol>
+        </defs>
+    </svg>
+
+    <canvas id="stage" tabindex="-1" aria-label="Interactive 3D scene: an old tree that pulses with the music"></canvas>
+    <div class="ripples" id="ripples" aria-hidden="true"></div>
+
+    <header class="brand hud" id="brand">
+        <span class="beat-dot" id="beatDot"></span>
+        <span class="brand-text"><span class="wordmark">Heartwood</span><span class="byline">by quirq</span></span>
+        <span class="streaming" id="streaming" title="Streaming detail"></span>
+    </header>
+
+    <nav class="dock hud" id="dock" aria-label="Controls">
+        <div class="group">
+            <button class="btn btn-play" id="play" aria-label="Play" data-tip="Play · Space">
+                <svg class="ic"><use href="#i-play" /></svg>
+            </button>
+            <canvas class="viz" id="viz" width="96" height="40" aria-hidden="true"></canvas>
+        </div>
+        <span class="sep"></span>
+        <div class="group" role="radiogroup" aria-label="Music">
+            <button class="chip" data-mood="heart" role="radio" aria-checked="false" data-tip="64 bpm">Heart</button>
+            <button class="chip" data-mood="bloom" role="radio" aria-checked="false" data-tip="116 bpm">Bloom</button>
+            <button class="chip" data-mood="drift" role="radio" aria-checked="false" data-tip="Ambient">Drift</button>
+            <button class="btn" id="file" role="radio" aria-checked="false" aria-label="Your music" data-tip="Your music">
+                <svg class="ic"><use href="#i-music" /></svg>
+            </button>
+            <button class="btn" id="mic" role="radio" aria-checked="false" aria-label="Microphone" data-tip="Microphone">
+                <svg class="ic"><use href="#i-mic" /></svg>
+            </button>
+        </div>
+        <span class="sep"></span>
+        <div class="group">
+            <label class="slider" data-tip="Pulse">
+                <svg class="ic sm"><use href="#i-pulse" /></svg>
+                <input type="range" id="intensity" min="0" max="1" step="0.01" aria-label="Pulse" />
+            </label>
+            <label class="slider" data-tip="Dusk">
+                <svg class="ic sm"><use href="#i-moon" /></svg>
+                <input type="range" id="dusk" min="0" max="1" step="0.01" aria-label="Dusk" />
+            </label>
+        </div>
+        <span class="sep"></span>
+        <div class="group swatches" id="swatches" role="radiogroup" aria-label="Colour"></div>
+        <span class="sep"></span>
+        <div class="group">
+            <button class="btn" id="orbit" aria-label="Auto orbit" aria-pressed="true" data-tip="Auto orbit · O">
+                <svg class="ic"><use href="#i-orbit" /></svg>
+            </button>
+            <button class="btn" id="fullscreen" aria-label="Fullscreen" data-tip="Fullscreen · F">
+                <svg class="ic"><use href="#i-expand" /></svg>
+            </button>
+            <button class="btn" id="infoBtn" aria-label="About" data-tip="About">
+                <svg class="ic"><use href="#i-info" /></svg>
+            </button>
+        </div>
+    </nav>
+
+    <a class="credit hud" id="credit" target="_blank" rel="noopener"></a>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <input type="file" id="fileInput" accept="audio/*" hidden />
+
+    <div class="drop" id="drop" aria-hidden="true"><span>Drop a track</span></div>
+
+    <div class="info" id="info" role="dialog" aria-modal="true" aria-labelledby="infoTitle" hidden>
+        <div class="card">
+            <button class="btn close" id="infoClose" aria-label="Close"><svg class="ic"><use href="#i-close" /></svg></button>
+            <h2 id="infoTitle">Heartwood <span class="by">by quirq</span></h2>
+            <p class="lede">An old tree as 5.9 million Gaussian splats. Every heartbeat sends a ring of light through it.</p>
+            <dl class="keys">
+                <dt>Drag</dt><dd>Orbit</dd>
+                <dt class="desk">Right-drag</dt><dd class="desk">Pan</dd>
+                <dt class="desk">Scroll</dt><dd class="desk">Zoom</dd>
+                <dt class="touch">Two fingers</dt><dd class="touch">Pan · zoom</dd>
+                <dt>Tap</dt><dd>Ripple + note</dd>
+                <dt>Double-tap</dt><dd>Move the heart</dd>
+                <dt class="desk">Space</dt><dd class="desk">Play / pause</dd>
+                <dt class="desk">1–4</dt><dd class="desk">Colour</dd>
+                <dt class="desk">P · R · H</dt><dd class="desk">Pulse · reset · hide</dd>
+            </dl>
+            <p class="small" id="infoCredit"></p>
+        </div>
+    </div>
+
+    <section class="intro" id="intro">
+        <div class="intro-bg" id="introBg"></div>
+        <div class="intro-inner">
+            <div class="lockup">
+                <h1 class="title">Heartwood</h1>
+                <p class="by">by quirq</p>
+            </div>
+            <p class="tagline">5.9 million splats · one heartbeat</p>
+            <div class="load" aria-hidden="true"><span id="loadBar"></span></div>
+            <button class="begin" id="begin">
+                <svg class="ic heart"><use href="#i-heart" /></svg>
+                <span id="beginLabel">Begin</span>
+            </button>
+            <p class="sound"><svg class="ic sm"><use href="#i-sound" /></svg>Sound on</p>
+        </div>
+        <p class="intro-credit" id="introCredit"></p>
+    </section>
+
+    <div class="fatal" id="fatal" hidden></div>
+
+    <script type="module" src="./src/main.js"></script>
+</body>
+</html>

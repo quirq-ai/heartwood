@@ -1,0 +1,22 @@
+# Static file server for the built site. TLS is terminated in front of the container.
+{
+	admin off
+	auto_https off
+}
+
+:3000 {
+	root * /srv
+	encode zstd gzip
+
+	# hashed build files never change; everything else is checked on each visit
+	@assets path /assets/*
+	header @assets Cache-Control "public, max-age=31536000, immutable"
+	@pages not path /assets/*
+	header @pages Cache-Control "no-cache"
+
+	header X-Content-Type-Options nosniff
+	header Referrer-Policy strict-origin-when-cross-origin
+
+	try_files {path} /index.html
+	file_server
+}
