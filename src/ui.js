@@ -33,6 +33,7 @@ export function createUI({ settings, scene, palettes, on }) {
     const swatches = $('swatches');
     const ripples = $('ripples');
     const moodChips = [...document.querySelectorAll('[data-mood]')];
+    const studioBtn = $('studioBtn');
     const fileBtn = $('file');
     const micBtn = $('mic');
 
@@ -82,6 +83,7 @@ export function createUI({ settings, scene, palettes, on }) {
     begin.addEventListener('click', () => on.begin());
     play.addEventListener('click', () => on.togglePlay());
     moodChips.forEach((c) => c.addEventListener('click', () => on.mood(c.dataset.mood)));
+    studioBtn.addEventListener('click', () => on.studio());
     fileBtn.addEventListener('click', () => fileInput.click());
     fileInput.addEventListener('change', () => {
         const f = fileInput.files?.[0];
@@ -141,12 +143,14 @@ export function createUI({ settings, scene, palettes, on }) {
         setAccent(palettes[i].ui);
     }
 
-    function setSource(mode, mood) {
+    /** @param {number} [bpm] - the studio song's tempo, when mode is 'studio' */
+    function setSource(mode, mood, bpm) {
         moodChips.forEach((c) => c.setAttribute('aria-checked', String(mode === 'synth' && c.dataset.mood === mood)));
+        studioBtn.setAttribute('aria-checked', String(mode === 'studio'));
         fileBtn.setAttribute('aria-checked', String(mode === 'file'));
         micBtn.setAttribute('aria-checked', String(mode === 'mic'));
-        const bpm = { heart: 64, bloom: 116, drift: 56 }[mood] ?? 64;
-        document.documentElement.style.setProperty('--beat', `${60 / bpm}s`);
+        const tempo = mode === 'studio' && bpm ? bpm : { heart: 64, bloom: 116, drift: 56 }[mood] ?? 64;
+        document.documentElement.style.setProperty('--beat', `${60 / tempo}s`);
     }
 
     function setPlaying(playing) {

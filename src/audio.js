@@ -1,8 +1,10 @@
 import { Composer } from './music.js';
+import { Sequencer } from './sequencer.js';
 
-// Audio: one context, three sources (the generative score, a track of your own, the
-// microphone), and an analyser that turns whatever is playing into smoothed bass / mid / high
-// levels, spectrum bars for the UI, and beat events.
+// Audio: one context, four sources (the generative score, a song from the studio, a track of
+// your own, the microphone), and an analyser that turns whatever is playing into smoothed
+// bass / mid / high levels, spectrum bars for the UI, and beat events. It can also record what
+// it plays to a file.
 
 const clamp01 = (v) => Math.max(0, Math.min(1, v));
 const BAR_COUNT = 14;
@@ -10,7 +12,9 @@ const BAR_COUNT = 14;
 export class AudioEngine {
     constructor() {
         this.ctx = null;
-        this.mode = 'synth';           // 'synth' | 'file' | 'mic'
+        this.mode = 'synth';           // 'synth' | 'studio' | 'file' | 'mic'
+        this.sequencer = null;
+        this.recorder = null;
         this.playing = false;
         this.events = [];
         this.levels = { bass: 0, mid: 0, high: 0, level: 0 };
@@ -87,6 +91,7 @@ export class AudioEngine {
     playSynth(mood) {
         this.stopFile();
         this.stopMic();
+        this.sequencer?.stop();
         this.mode = 'synth';
         if (mood) this.composer.setMood(mood);
         this.composer.start();
@@ -98,10 +103,48 @@ export class AudioEngine {
         this.composer?.setMood(mood);
     }
 
+    /** The studio's sequencer, made on first use, playing `song` (kept by reference, so edits are heard). */
+    studio(song) {
+        if (!this.sequencer) this.sequencer = new Sequencer(this.ctx, this.master, (e) => this.events.push(e));
+        if (song) this.sequencer.song = song;
+        return this.sequencer;
+    }
+
+    playStudio(song) {
+        this.stopFile();
+        this.stopMic();
+        this.composer.stop();
+        const seq = this.studio(song);
+        if (!seq.playing) seq.start();
+        this.mode = 'studio';
+        this.fade(0.85, 0.5);
+        this.playing = true;
+    }
+
+    /** Lets a note through while paused, for previews and live notes. */
+    openUp() {
+        if (!this.playing && this.master.gain.value < 0.5) this.fade(0.85, 0.03);
+    }
+
+    /** A melody note played live in the studio; returns the step it lands on while the song runs. */
+    live(row, source) {
+        if (!this.ctx || !this.sequencer?.song) return null;
+        this.openUp();
+        return this.sequencer.live(row, this.heardTime, source);
+    }
+
+    /** The sound of one square of the studio. */
+    preview(part, row, value) {
+        if (!this.ctx || !this.sequencer?.song) return;
+        this.openUp();
+        this.sequencer.preview(part, row, value);
+    }
+
     /** @param {File} file */
     async playFile(file) {
         await this.init();
         this.composer.stop();
+        this.sequencer?.stop();
         this.stopMic();
         if (!this.audioEl) {
             this.audioEl = new Audio();
@@ -132,6 +175,7 @@ export class AudioEngine {
             audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
         });
         this.composer.stop();
+        this.sequencer?.stop();
         this.stopFile();
         this.fade(0, 0.3);
         this.stopMic();
@@ -157,10 +201,13 @@ export class AudioEngine {
     pause() {
         if (!this.ctx || !this.playing) return;
         this.playing = false;
-        if (this.mode === 'synth') {
+        if (this.mode === 'synth' || this.mode === 'studio') {
+            const mode = this.mode;
             this.fade(0, 0.35);
             setTimeout(() => {
-                if (!this.playing && this.mode === 'synth') this.composer.stop();
+                if (this.playing || this.mode !== mode) return;
+                if (mode === 'synth') this.composer.stop();
+                else this.sequencer?.stop();
             }, 400);
         } else if (this.mode === 'file') {
             this.fade(0, 0.2);
@@ -175,6 +222,7 @@ export class AudioEngine {
     async resume() {
         await this.init();
         if (this.mode === 'synth') this.playSynth();
+        else if (this.mode === 'studio') this.playStudio();
         else if (this.mode === 'file' && this.audioEl?.src) {
             await this.audioEl.play();
             this.fade(0.9, 0.3);
@@ -187,6 +235,52 @@ export class AudioEngine {
     /** A harmonised note for a tap on the scene; only over the generative score. */
     tap(height) {
         if (this.ctx && this.playing && this.mode === 'synth') this.composer.tap(height);
+    }
+
+    // --- recording ---------------------------------------------------------------------------
+
+    get recording() {
+        return !!this.recorder;
+    }
+
+    /** Starts recording everything that plays. Throws where the browser can't record audio. */
+    startRecording() {
+        if (!this.ctx) throw new Error('No sound yet');
+        if (this.recorder) return;
+        if (!window.MediaRecorder) throw new Error('This browser can’t record audio');
+        const types = ['audio/webm;codecs=opus', 'audio/mp4', 'audio/webm', 'audio/ogg;codecs=opus'];
+        const mimeType = types.find((t) => MediaRecorder.isTypeSupported?.(t)) ?? '';
+        this.recDest = this.ctx.createMediaStreamDestination();
+        this.master.connect(this.recDest);
+        const recorder = new MediaRecorder(this.recDest.stream, mimeType ? { mimeType, audioBitsPerSecond: 192000 } : undefined);
+        this.recChunks = [];
+        recorder.ondataavailable = (e) => {
+            if (e.data.size) this.recChunks.push(e.data);
+        };
+        recorder.start(250);
+        this.recorder = recorder;
+        this.recStart = performance.now();
+    }
+
+    /** Stops recording; resolves with the recording, or null if there wasn't one. */
+    stopRecording() {
+        const recorder = this.recorder;
+        if (!recorder) return Promise.resolve(null);
+        return new Promise((resolve) => {
+            recorder.onstop = () => {
+                const blob = new Blob(this.recChunks, { type: recorder.mimeType || 'audio/webm' });
+                try {
+                    this.master.disconnect(this.recDest);
+                } catch {
+                    // already disconnected
+                }
+                this.recorder = null;
+                this.recDest = null;
+                this.recChunks = [];
+                resolve(blob.size ? blob : null);
+            };
+            recorder.stop();
+        });
     }
 
     /** Events whose audio time has been reached. */
@@ -250,7 +344,7 @@ export class AudioEngine {
         }
 
         // beats for sources without a score: rising edges of the bass over its recent average
-        if (this.mode !== 'synth' && this.playing) {
+        if ((this.mode === 'file' || this.mode === 'mic') && this.playing) {
             const b = raw.bass;
             this.bassAvg += (b - this.bassAvg) * (1 - Math.exp(-dt * 3));
             const now = this.ctx.currentTime;

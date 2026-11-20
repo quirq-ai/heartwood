@@ -1,7 +1,8 @@
 # Heartwood
 
 An old tree, captured as 5.9 million Gaussian splats, that pulses with music. Every heartbeat
-sends a ring of light out from the trunk; tap anywhere to send a ripple and play a note.
+sends a ring of light out from the trunk; tap anywhere to send a ripple and play a note. In the
+Studio you write your own song, part by part, and the tree draws each part as it plays.
 
 **Live:** https://liftoff-7-xo-sscay4t.apps.hello-xo.nl
 
@@ -61,6 +62,31 @@ the effects are, Dusk grades the scene toward night so the light carries.
 URL options: `?renderer=webgl` forces WebGL 2 (WebGPU is used when available), `?debug` shows
 frame stats, `?src=<lod-meta.json | .sog | .ply url>&heart=x,y,z` loads another SuperSplat scene.
 
+## Studio
+
+**Studio** in the dock opens a step sequencer for the song the tree plays: chords, melody, bass,
+heart (the kick), clap and hats. Each part is one bar of 16 steps, looped under four bars of
+chords. The melody's rows are the key's pentatonic scale and the bass's rows are tones of each
+bar's chord, so every square is in key, and changing the key or a chord carries the song with it.
+
+| Input | Does |
+| --- | --- |
+| Tap a square, or drag | Write or clear notes; drum squares go full, soft, off |
+| A part's name | Mute it |
+| A part's dice | A new pattern for that part |
+| A chord | The next chord (right-click: the one before) |
+| Dice at the top | A new song: Surprise me, Heart, Bloom, Drift or Blank |
+| Pencil | Write the notes you play live into the melody |
+| Tap the tree, Z – , | Play the melody's notes live, in key |
+| ● | Record what plays; press again to save it as an audio file |
+| Link | Copy a link that opens this song (`#s=` and 56 characters) |
+| Ctrl+Z, Ctrl+Shift+Z | Undo, redo |
+
+Each part lights the tree its own way. The heart sends rings along the ground; the bass sends
+slower, wider rings in the palette's second colour; each chord a slow swell. The melody lights
+points on an upright sheet through the trunk: left to right through the bar, higher notes higher
+up. Hats sparkle and claps flash. The song is kept in the browser between visits.
+
 ## How it works
 
 | File | Role |
@@ -68,7 +94,10 @@ frame stats, `?src=<lod-meta.json | .sog | .ply url>&heart=x,y,z` loads another 
 | `src/scene.js` | PlayCanvas app, camera with bloom and vignette, streaming the splat (coarsest level first), picking |
 | `src/pulse.js` | The effect: one `gsplatModifyVS` shader chunk (GLSL for WebGL 2, WGSL for WebGPU) that moves, scales and lights every splat from the music: rings, sway, sparkle, dusk, reveal. It also fades out leaves close to the lens, never the ground |
 | `src/music.js` | Generative score on the Web Audio API: heartbeat kick, sub bass, pads, FM plucks and bells, with every note reported on the audio clock |
-| `src/audio.js` | Sources (score, your track, microphone), analysis into bass / mid / high, beat detection for tracks without a score |
+| `src/audio.js` | Sources (score, studio song, your track, microphone), analysis into bass / mid / high, beat detection for tracks without a score, recording |
+| `src/song.js` | Studio songs: keys, scales and chords, the three moods as songs, a generator for each part, 56-character share codes |
+| `src/sequencer.js` | Plays a studio song on the score's instruments, reporting each note's part, step and row |
+| `src/studio.js` | The studio panel: the grid, painting, chords, key and new-song menus, the playhead |
 | `src/orbit.js` | Orbit camera: damped, flick inertia, a slow drift that dips under the low branches on the far side, and how much to clear around the lens |
 | `src/ui.js`, `index.html`, `src/style.css` | Intro, dock, about card, drag and drop |
 | `src/main.js` | Wires music events to light, taps to ripples, keys, and a quality governor for slow devices |

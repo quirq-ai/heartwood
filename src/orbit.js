@@ -56,6 +56,12 @@ export class OrbitRig {
         this.clock = 0;
         this.yawVelocity = 0;       // inertia after a flick
 
+        // how far to move the picture left (x) and up (y), in CSS pixels, so the tree stays
+        // centred in the part of the screen a panel leaves free; done by aiming past the target
+        this.frame = { x: 0, y: 0 };
+        this.frameGoal = { x: 0, y: 0 };
+        this._look = new Vec3();
+
         this.onTap = null;
         this.onDoubleTap = null;
         this.enabled = true;
@@ -165,7 +171,21 @@ export class OrbitRig {
         ).mulScalar(distance).add(this.target);
 
         this.camera.setPosition(this._pos);
-        this.camera.lookAt(this.target);
+
+        // aiming at a point beside or below the target moves the target the other way on screen
+        this.frame.x = damp(this.frame.x, this.frameGoal.x, 4, dt);
+        this.frame.y = damp(this.frame.y, this.frameGoal.y, 4, dt);
+        const look = this._look.copy(this.target);
+        if (Math.abs(this.frame.x) > 0.5 || Math.abs(this.frame.y) > 0.5) {
+            const h = this.canvas.clientHeight || 1;
+            const fov = (this.camera.camera?.fov ?? 60) * DEG;
+            const unitsPerPixel = (2 * distance * Math.tan(fov / 2)) / h;
+            const yaw = this.yaw * DEG;
+            look.x += Math.cos(yaw) * this.frame.x * unitsPerPixel;
+            look.z -= Math.sin(yaw) * this.frame.x * unitsPerPixel;
+            look.y -= this.frame.y * unitsPerPixel;
+        }
+        this.camera.lookAt(look);
     }
 
     /** Takes over the distance the drift had moved in to, so user input doesn't jump it back. */

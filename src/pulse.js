@@ -11,9 +11,10 @@
 // The same logic is written twice, GLSL for WebGL2 and WGSL for WebGPU (where it runs inside
 // the engine's projection compute shader).
 
-// enough slots that a ring is never recycled while it's still travelling (about 2 rings a second
-// at the fastest tempo, each alive for RING_LIFE seconds)
-export const RING_COUNT = 16;
+// enough slots that a ring is rarely recycled while it's still visible: beat rings live for
+// RING_LIFE seconds, the studio's bass and melody notes for less. When every slot is taken, the
+// ring furthest through its life gives way.
+export const RING_COUNT = 24;
 const RING_LIFE = 8.5;
 
 export const PALETTES = [
@@ -33,7 +34,7 @@ uniform vec3 uTintRing;
 uniform vec3 uTintTap;
 uniform vec3 uTintSpark;
 uniform vec4 uRingA[${RING_COUNT}];   // origin xyz, current radius
-uniform vec4 uRingB[${RING_COUNT}];   // current strength, current width, shape (0 ring around trunk, 1 sphere), -
+uniform vec4 uRingB[${RING_COUNT}];   // current strength, current width, shape (0 ring around trunk, 1 sphere), colour (0 ring, 1 tap, 2 spark)
 uniform vec4 uCam;        // camera position, radius around it cleared of everything above the ground
 
 float hwGlow;
@@ -48,6 +49,10 @@ float hwHash(vec3 q) {
     vec3 p = fract(q * vec3(0.1031, 0.1030, 0.0973));
     p += dot(p, p.yxz + 33.33);
     return fract((p.x + p.y) * p.z);
+}
+
+vec3 hwTintOf(float w) {
+    return mix(mix(uTintRing, uTintTap, clamp(w, 0.0, 1.0)), uTintSpark, clamp(w - 1.0, 0.0, 1.0));
 }
 
 void modifySplatCenter(inout vec3 center) {
@@ -82,7 +87,7 @@ void modifySplatCenter(inout vec3 center) {
         // ground rings are brightest at the ground and wash more softly up through the trees
         float band = exp(-x * x) * b.x * mix(mix(1.0, 0.55, smoothstep(0.5, 7.0, d.y)), 1.0, b.z);
         hwGlow += band;
-        hwTint += band * mix(uTintRing, uTintTap, b.z);
+        hwTint += band * hwTintOf(b.w);
         vec3 dir = d / max(length(d), 0.001);
         offset += (vec3(0.0, 0.1, 0.0) + dir * 0.05) * band;
     }
@@ -111,7 +116,9 @@ void modifySplatColor(vec3 center, inout vec4 color) {
     float lum = dot(c, vec3(0.299, 0.587, 0.114));
     c = mix(c, mix(vec3(lum), c, 0.6) * vec3(0.30, 0.36, 0.52), dusk);
     c *= 1.0 + uFx.w * 0.12 * uFx.x;
-    c += hwTint * (0.4 + dusk * 0.9) * uFx.x * uFx2.z;
+    // where many rings overlap their light adds up to no more than about one and a half rings
+    vec3 tint = hwTint * (min(hwGlow, 1.4) / max(hwGlow, 0.0001));
+    c += tint * (0.4 + dusk * 0.9) * uFx.x * uFx2.z;
     float twinkle = pow(max(0.0, sin(uTime * (2.0 + hwRand * 6.0) + hwRand * 91.0)), 16.0);
     c += uTintSpark * step(0.972, hwRand) * twinkle * hwNear * uFx2.y * (1.0 + dusk);
     c += uTintRing * hwFront * 0.9;
@@ -147,6 +154,10 @@ fn hwHash(q: vec3f) -> f32 {
     return fract((p.x + p.y) * p.z);
 }
 
+fn hwTintOf(w: f32) -> vec3f {
+    return mix(mix(uniform.uTintRing, uniform.uTintTap, clamp(w, 0.0, 1.0)), uniform.uTintSpark, clamp(w - 1.0, 0.0, 1.0));
+}
+
 fn modifySplatCenter(center: ptr<function, vec3f>) {
     let p = *center;
     let rel = p - uniform.uHeart;
@@ -179,7 +190,7 @@ fn modifySplatCenter(center: ptr<function, vec3f>) {
         }
         let band = exp(-x * x) * b.x * mix(mix(1.0, 0.55, smoothstep(0.5, 7.0, d.y)), 1.0, b.z);
         hwGlow = hwGlow + band;
-        hwTint = hwTint + band * mix(uniform.uTintRing, uniform.uTintTap, b.z);
+        hwTint = hwTint + band * hwTintOf(b.w);
         let dir = d / max(length(d), 0.001);
         offset = offset + (vec3f(0.0, 0.1, 0.0) + dir * 0.05) * band;
     }
@@ -207,7 +218,8 @@ fn modifySplatColor(center: vec3f, color: ptr<function, vec4f>) {
     let lum = dot(c, vec3f(0.299, 0.587, 0.114));
     c = mix(c, mix(vec3f(lum), c, 0.6) * vec3f(0.30, 0.36, 0.52), dusk);
     c = c * (1.0 + uniform.uFx.w * 0.12 * uniform.uFx.x);
-    c = c + hwTint * (0.4 + dusk * 0.9) * uniform.uFx.x * uniform.uFx2.z;
+    let tint = hwTint * (min(hwGlow, 1.4) / max(hwGlow, 0.0001));
+    c = c + tint * (0.4 + dusk * 0.9) * uniform.uFx.x * uniform.uFx2.z;
     let twinkle = pow(max(0.0, sin(uniform.uTime * (2.0 + hwRand * 6.0) + hwRand * 91.0)), 16.0);
     c = c + uniform.uTintSpark * (step(0.972, hwRand) * twinkle * hwNear * uniform.uFx2.y * (1.0 + dusk));
     c = c + uniform.uTintRing * (hwFront * 0.9);
@@ -233,7 +245,7 @@ export class PulseField {
 
         this.time = 0;
         this.rings = Array.from({ length: RING_COUNT }, () => ({
-            live: false, x: 0, y: 0, z: 0, birth: -1e9, amp: 0, speed: 0, width: 1, shape: 0
+            live: false, x: 0, y: 0, z: 0, birth: -1e9, amp: 0, speed: 0, width: 1, shape: 0, tint: 0, life: RING_LIFE
         }));
         this.ringA = new Float32Array(RING_COUNT * 4);
         this.ringB = new Float32Array(RING_COUNT * 4);
@@ -267,12 +279,16 @@ export class PulseField {
 
     /**
      * Starts a ring. Shape 0 travels outward around a vertical axis (beat rings), shape 1 is a
-     * sphere (tap ripples).
+     * sphere (tap ripples, melody notes). Tint 0 takes the palette's ring colour, 1 its tap
+     * colour, 2 its sparkle colour; life is in seconds.
      */
-    ring(origin, { amp = 1, speed = 7, width = 0.9, shape = 0 } = {}) {
-        // a free slot, else the oldest (by then it has all but faded)
+    ring(origin, { amp = 1, speed = 7, width = 0.9, shape = 0, tint = shape, life = RING_LIFE } = {}) {
+        // a free slot, else the one furthest through its life (by then it has all but faded)
         let slot = this.rings.find((r) => !r.live);
-        if (!slot) slot = this.rings.reduce((oldest, r) => (r.birth < oldest.birth ? r : oldest));
+        if (!slot) {
+            const used = (r) => (this.time - r.birth) / r.life;
+            slot = this.rings.reduce((a, r) => (used(r) > used(a) ? r : a));
+        }
         slot.live = true;
         slot.x = origin[0] ?? origin.x;
         slot.y = origin[1] ?? origin.y;
@@ -282,6 +298,8 @@ export class PulseField {
         slot.speed = speed;
         slot.width = width;
         slot.shape = shape;
+        slot.tint = tint;
+        slot.life = life;
     }
 
     clearRings() {
@@ -306,7 +324,7 @@ export class PulseField {
             let width = 1;
             if (r.live) {
                 const age = this.time - r.birth;
-                if (age > RING_LIFE) {
+                if (age > r.life) {
                     r.live = false;
                 } else {
                     radius = r.speed * age;
@@ -316,7 +334,7 @@ export class PulseField {
                         Math.min(1, age * 10) *
                         Math.exp(-age * 0.25) *
                         (1 - smoothstep(30, 56, radius)) *
-                        (1 - smoothstep(RING_LIFE - 2, RING_LIFE, age));
+                        (1 - smoothstep(r.life > 4 ? r.life - 2 : r.life * 0.35, r.life, age));
                     // and spreads a little as it travels, staying a line rather than a wash
                     width = r.width * (1 + radius * 0.012);
                 }
@@ -328,7 +346,7 @@ export class PulseField {
             this.ringB[o] = strength > 0.003 ? strength : 0;
             this.ringB[o + 1] = width;
             this.ringB[o + 2] = r.shape;
-            this.ringB[o + 3] = 0;
+            this.ringB[o + 3] = r.tint;
         }
     }
 
